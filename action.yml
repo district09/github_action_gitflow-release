@@ -19,6 +19,14 @@ inputs:
     description: "The branch where the merged branch should be merged back to"
     required: false
     default: develop
+  git_user_mail:
+    description: The git user email address, defaults to action@github.com
+    required: false
+    default: action@github.com
+  git_user_name:
+    description: The git user name, defaults to ""GitHub Actions""
+    required: false
+    default: GitHub Actions
 
 
 runs:
@@ -38,6 +46,11 @@ runs:
           exit 1
         fi
         echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+    - name: Set git user identity
+      run: |
+        git config --global user.email "${{ inputs.git_user_mail }}"
+        git config --global user.name "${{ inputs.git_user_name }}"
 
     - name: Create tag on ${{ inputs.tag_branch }}
       shell: bash
