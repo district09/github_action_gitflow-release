@@ -26,17 +26,12 @@ jobs:
       - name: Set up GitHub token
         run: echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
 
-      - name: Extract branch information
-        run: |
-          echo "merged_branch_name=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
-          echo "merged_branch_sha=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
-
       - name: Use the Gitflow release action
         uses: District09-Ent/github_action_auto-release@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          merged_branch_name: ${{ env.merged_branch_name }}
-          merged_branch_sha: ${{ env.merged_branch_sha }}
+          merged_branch_name: ${{ github.event.pull_request.head.ref }}
+          merged_branch_sha: ${{ github.event.pull_request.head.sha }}
           tag_branch: main  # or specify the branch where the tag should be created
           backmerge_branch: develop  # or specify the branch where the merged branch should be merged back to
 
