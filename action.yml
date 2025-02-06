@@ -1,0 +1,69 @@
+name: "Gitflow release action"
+description: "Creates a tag, GitHub release, and backmerge PR after merging a release or hotfix branch."
+
+inputs:
+  github_token:
+    description: "GitHub token with repo permissions"
+    required: true
+  merged_branch_name:
+    description: "The name of the branch that was merged"
+    required: true
+  merged_branch_sha:
+    description: "The SHA of the branch that was merged"
+    required: true
+  tag_branch:
+    description: "The branch where the tag should be created (e.g., main)"
+    required: false
+    default: main
+  backmerge_branch:
+    description: "The branch where the merged branch should be merged back to"
+    required: false
+    default: develop
+
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Ensures full history is available
+
+    - name: Extract version and validate
+      shell: bash
+      run: |
+        VERSION=$(echo ${{ inputs.merged_branch_name }} | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+        if [[ -z "$VERSION" ]]; then
+          echo "::error title=Invalid Branch Name::Could not extract a valid version from branch '${{ inputs.merged_branch_name }}'. Expected format: release/x.y.z or hotfix/x.y.z"
+          exit 1
+        fi
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+    - name: Create tag on ${{ inputs.tag_branch }}
+      shell: bash
+      run: |
+        git checkout ${{ inputs.tag_branch }}
+        TAG=${{ env.VERSION }}
+        { echo "Release $TAG"; echo; git log --date=local --no-merges --no-color $(git describe --tags --abbrev=0)..HEAD; } | git tag -a "$TAG" -F -
+        git push origin "$TAG"
+
+    - name: Create GitHub Release ${{ env.VERSION }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        gh release create "${{ env.VERSION }}" --notes-from-tag --verify-tag --title "${{ env.VERSION }}"
+
+    - name: Restore ${{ inputs.merged_branch_name }} at ${{ inputs.merged_branch_sha }}
+      shell: bash
+      run: |
+        git checkout -b ${{ inputs.merged_branch_name }} ${{ inputs.merged_branch_sha }}
+        git push origin ${{ inputs.merged_branch_name }}
+
+    - name: Create PR to ${{ inputs.backmerge_branch }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        gh pr create --base ${{ inputs.backmerge_branch }} --head ${{ inputs.merged_branch_name }} --title "Merge ${{ inputs.merged_branch_name }} into ${{ inputs.backmerge_branch }}" --body "Merging release ${{ env.VERSION }} into ${{ inputs.backmerge_branch }}."
+
